@@ -7,9 +7,11 @@ import com.pengrad.telegrambot.model.Message;
 import com.pengrad.telegrambot.model.Update;
 import com.pengrad.telegrambot.model.request.InlineKeyboardButton;
 import com.pengrad.telegrambot.model.request.InlineKeyboardMarkup;
+import com.pengrad.telegrambot.request.DeleteMessage;
+import com.pengrad.telegrambot.request.EditMessageText;
 import com.pengrad.telegrambot.request.ForwardMessage;
 import com.pengrad.telegrambot.request.SendMessage;
-import org.jetbrains.annotations.Contract;
+import com.pengrad.telegrambot.response.SendResponse;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -17,14 +19,16 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
+import static bot.Constants.*;
+
 public class Bot {
 
-    private final long ADMIN_ID = 1645169713;
-    private final String TOKEN = "5177036357:AAHfT4N39iOR-O8eZ52veilPILr4kaNPDHs";
     private final TelegramBot bot = new TelegramBot(TOKEN);
 
     private final Map<Long, ArrayList<Integer>> senders = new HashMap<>();
-    private final Map<Long, Long> timeout = new HashMap<>();
+    private final Map<Long, Long> timeLimitedUsers = new HashMap<>();
+    private final Map<Long, Integer> deleteRequestMsg = new HashMap<>();
+    private final Map<Long, Integer> actionRequestMsg = new HashMap<>();
 
     public void listen() {
         bot.setUpdatesListener(updates -> {
@@ -32,7 +36,6 @@ public class Bot {
             return UpdatesListener.CONFIRMED_UPDATES_ALL;
         });
     }
-
 
     private void process(@NotNull Update update) {
 
@@ -45,105 +48,194 @@ public class Bot {
             long senderID = message.from().id();
 
             if (senderID != ADMIN_ID) {
-
                 if (message.text() != null) {
-
                     switch (message.text()) {
-                        case "/start":
-                            if (!senders.containsKey(senderID)) {
-                                senders.put(senderID, new ArrayList<>());
-                                bot.execute(new SendMessage(senderID, "Let's begin"));
-                            } else {
-                                bot.execute(new SendMessage(senderID, "you in process right now"));
-                            }
+                        case BEGIN:
+                            processBegin(message, senderID);
                             return;
-                        case "/send":
-                            if (senders.containsKey(senderID)) {
-
-                                if (timeout.containsKey(senderID)) {
-                                    if (new Date().getTime() < timeout.get(senderID)) {
-                                        int time = (int) ((timeout.get(senderID) - new Date().getTime()) / 1000);
-                                        int minutes = time / 60;
-                                        int seconds = time % 60;
-                                        bot.execute(new SendMessage(senderID, "You cannot send messages " +
-                                                "more than once per hour\nwait for " + minutes + " m " + seconds + " s"));
-                                        return;
-                                    } else {
-                                        timeout.remove(senderID);
-                                        sendMsgPack(senderID);
-                                    }
-                                } else {
-                                    sendMsgPack(senderID);
-                                }
-                            }
+                        case SEND:
+                            processSend(senderID);
                             return;
-                        case "/help":
-                            bot.execute(new SendMessage(senderID, "Help information must be here"));
+                        case HELP:
+                            sendMessage(senderID, README);
+                            return;
+                        case BREAK:
+                            processBreak(senderID);
                             return;
                     }
                 }
-
-                if (senders.containsKey(senderID)) {
-                    ArrayList<Integer> idList = senders.get(senderID);
-                    if (idList.size() > 5) {
-                        bot.execute(new SendMessage(senderID, "You can send no more than 5 messages"));
-                    } else {
-                        idList.add(messageID);
-                    }
-                } else {
-                    bot.execute(new SendMessage(senderID, "Send /start to begin"));
-                }
+                limitMessages(messageID, senderID);
             }
         }
 
         if (callbackQuery != null) {
-            String[] data = callbackQuery.data().split(" ");
+            long senderID = callbackQuery.from().id();
+            if (senderID == ADMIN_ID) {
+                adminHandlingResult(callbackQuery);
+            } else {
+                userHandlingResult(callbackQuery, senderID);
+            }
+        }
+    }
 
-            String action = data[0];
-            long senderID = Long.parseLong(data[1]);
+    private void processSend(long senderID) {
+        if (senders.containsKey(senderID)) {
+            if (timeLimitedUsers.containsKey(senderID)) {
+                if (new Date().getTime() < timeLimitedUsers.get(senderID)) {
+                    sendTimeoutReport(senderID);
+                } else {
+                    timeLimitedUsers.remove(senderID);
+                    sendMsgPack(senderID);
+                }
+            } else {
+                sendMsgPack(senderID);
+            }
+        }
+    }
 
-            bot.execute(sendResponseToSender(senderID, action));
+    private void userHandlingResult(CallbackQuery callbackQuery, long senderID) {
+        String data = callbackQuery.data();
+        switch (data) {
+            case BREAK_DATA:
+                senders.get(senderID).forEach(msg -> bot.execute(new DeleteMessage(senderID, msg)));
+                senders.remove(senderID);
+                bot.execute(new EditMessageText(senderID,
+                        deleteRequestMsg.get(senderID), PROGRESS_BRAKED_MSG));
+                break;
+            case RESUME_DATA:
+                bot.execute(new EditMessageText(senderID,
+                        deleteRequestMsg.get(senderID), PROGRESS_RESUMED_MSG));
+                break;
+        }
+    }
 
+    private void adminHandlingResult(CallbackQuery callbackQuery) {
+        String[] data = callbackQuery.data().split(DATA_SPLITTER);
+
+        String action = data[0];
+        long recipientID = Long.parseLong(data[1]);
+
+        sendResponseToSender(recipientID, action);
+
+        String text = null;
+
+        switch (action) {
+            case ACCEPT_DATA:
+                text = ADMIN_ACCEPT_MSG;
+                break;
+            case EDIT_DATA:
+                text = ADMIN_EDIT_MSG;
+                break;
+            case DENY_DATA:
+                text = ADMIN_DENY_MSG;
+                break;
+        }
+        bot.execute(new EditMessageText(ADMIN_ID, actionRequestMsg.get(recipientID), text));
+        actionRequestMsg.remove(recipientID);
+    }
+
+    private void limitMessages(int messageID, long senderID) {
+        if (senders.containsKey(senderID)) {
+            ArrayList<Integer> idList = senders.get(senderID);
+            if (idList.size() >= MSGPACK_SIZE) {
+                bot.execute(new DeleteMessage(senderID, messageID));
+            } else {
+                idList.add(messageID);
+                if (idList.size() == MSGPACK_SIZE) {
+                    sendMessage(senderID, MSGPACK_SIZE_LIMIT_MSG);
+                }
+            }
+        } else {
+            sendMessage(senderID, INPUT_BEGIN_MSG);
+        }
+    }
+
+    private void processBreak(long senderID) {
+        if (senders.containsKey(senderID)) {
+            SendResponse response = sendMessage(senderID, BREAK_REQUEST_MSG, userHandler());
+            deleteRequestMsg.put(senderID, response.message().messageId());
+        } else {
+            sendMessage(senderID, PROCESS_NOT_STARTED_MSG);
+        }
+    }
+
+
+    private void sendTimeoutReport(long senderID) {
+        int time = (int) ((timeLimitedUsers.get(senderID) - new Date().getTime()) / TIMEOUT);
+        int minutes = time / 60;
+        int seconds = time % 60;
+        sendMessage(senderID,
+                TIMEOUT_LIMIT_MSG + (minutes > 0 ? minutes : "") + " мин " + seconds + " сек");
+    }
+
+    private void processBegin(Message message, long senderID) {
+        if (!senders.containsKey(senderID)) {
+            senders.put(senderID, new ArrayList<>());
+            sendMessage(senderID, HELLO + message.from().firstName() + LETS_BEGIN_MSG);
+        } else {
+            sendMessage(senderID, PROCESS_ALREADY_RUNNING_MSG);
         }
     }
 
     private void sendMsgPack(long senderID) {
         ArrayList<Integer> idList = senders.get(senderID);
         if (idList.size() == 0) {
-            bot.execute(new SendMessage(senderID, "Nothing to send"));
+            sendMessage(senderID, NOTHING_TO_SEND_MSG);
         } else {
             idList.forEach(id -> bot.execute(new ForwardMessage(ADMIN_ID, senderID, id)));
             senders.remove(senderID);
-            timeout.put(senderID, new Date().getTime() + 3600000L);
-            bot.execute(sendActionChoice(senderID));
+            timeLimitedUsers.put(senderID, new Date().getTime() + TIMEOUT);
+            SendResponse response = sendMessage(ADMIN_ID, CHOICE_ACTION_MSG, adminHandler(senderID));
+            actionRequestMsg.put(senderID, response.message().messageId());
+            sendMessage(senderID, MSGPACK_SENT_MSG);
         }
     }
 
-    private SendMessage sendActionChoice(long senderID) {
-        return new SendMessage(ADMIN_ID, "Choice action")
-                .replyMarkup(new InlineKeyboardMarkup(
-                        new InlineKeyboardButton("Accept").callbackData("accept " + senderID),
-                        new InlineKeyboardButton("Edit").callbackData("edit " + senderID),
-                        new InlineKeyboardButton("Deny").callbackData("deny " + senderID)));
+    void sendMessage(long chatID, String msg) {
+        bot.execute(new SendMessage(chatID, msg));
+    }
+
+    SendResponse sendMessage(long chatID, String msg, InlineKeyboardMarkup markup) {
+        return bot.execute(new SendMessage(chatID, msg).replyMarkup(markup));
+    }
+
+    void sendResponseToSender(long senderID, @NotNull String response) {
+        String text = null;
+        switch (response) {
+            case ACCEPT_DATA:
+                text = MSGPACK_ACCEPTED_MSG;
+                break;
+            case EDIT_DATA:
+                text = MSGPACK_NEED_EDITING_MSG;
+                break;
+            case DENY_DATA:
+                text = MSGPACK_DENIED_MSG;
+                break;
+        }
+        sendMessage(senderID, text);
     }
 
     @NotNull
-    @Contract("_, _ -> new")
-    private SendMessage sendResponseToSender(long senderID, @NotNull String response) {
-        String text = null;
+    private InlineKeyboardMarkup adminHandler(long senderID) {
+        return new InlineKeyboardMarkup(
+                adminHandlerBtn(ACCEPT_BTN_LABEL, ACCEPT_DATA, senderID),
+                adminHandlerBtn(EDIT_BTN_LABEL, EDIT_DATA, senderID),
+                adminHandlerBtn(DENY_BTN_LABEL, DENY_DATA, senderID));
+    }
 
-        switch (response) {
-            case "accept":
-                text = "Your post is accepted";
-                break;
-            case "edit":
-                text = "Look message formatting rules, and try again";
-                break;
-            case "deny":
-                text = "Your content is not suitable for publication";
-                break;
-        }
-        return new SendMessage(senderID, text);
+    private InlineKeyboardButton adminHandlerBtn(String label, String data, long senderID) {
+        return handlerBtn(label, data + DATA_SPLITTER + senderID);
+    }
+
+    @NotNull
+    private InlineKeyboardMarkup userHandler() {
+        return new InlineKeyboardMarkup(
+                handlerBtn(BREAK_BTN_LABEL, BREAK_DATA),
+                handlerBtn(RESUME_BTN_LABEL, RESUME_DATA));
+    }
+
+    private InlineKeyboardButton handlerBtn(String breakBtnLabel, String breakData) {
+        return new InlineKeyboardButton(breakBtnLabel).callbackData(breakData);
     }
 
 }
