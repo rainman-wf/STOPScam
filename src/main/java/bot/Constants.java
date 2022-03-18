@@ -15,7 +15,7 @@ public class Constants {
     public static final String ACCEPT_BTN_LABEL = "Принять";
     public static final String EDIT_BTN_LABEL = "Редактировать";
     public static final String DENY_BTN_LABEL = "Отклонить";
-    public static final String README = "";
+    public static final String README = "Файл readme на редакции";
 
     public static final String DATA_SPLITTER = ":";
     public static final String BREAK_DATA = "break";
