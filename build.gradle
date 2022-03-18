@@ -14,6 +14,10 @@ dependencies {
     implementation 'com.github.pengrad:java-telegram-bot-api:5.7.0'
 }
 
+tasks.withType (JavaCompile) {
+    options.encoding = "CP1251"
+}
+
 task stage (dependsOn: ['shadowJar'])
 
 shadowJar {
