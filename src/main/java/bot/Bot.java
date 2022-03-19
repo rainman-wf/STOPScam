@@ -15,7 +15,6 @@ import com.pengrad.telegrambot.request.SendMessage;
 import com.pengrad.telegrambot.response.SendResponse;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,7 +25,8 @@ public class Bot {
 
     private final TelegramBot bot = new TelegramBot(TOKEN);
 
-    private final Map<Long, ArrayList<Integer>> senders = new HashMap<>();
+    private final Map<Long, Integer> photo = new HashMap<>();
+    private final Map<Long, Integer> story = new HashMap<>();
     private final Map<Long, Long> timeLimitedUsers = new HashMap<>();
     private final Map<Long, Integer> deleteRequestMsg = new HashMap<>();
     private final Map<Long, Integer> actionRequestMsg = new HashMap<>();
@@ -58,12 +58,41 @@ public class Bot {
                             processSend(senderID);
                             return;
                         case HELP:
-                            sendMessage(senderID, README, ParseMode.MarkdownV2);
+                            sendMessage(senderID, README, ParseMode.HTML);
                             return;
                         case BREAK:
                             processBreak(senderID);
                             return;
                     }
+                }
+                if (photo.containsKey(senderID) && photo.get(senderID) == -1) {
+                    if (message.photo() == null) {
+                        sendMessage(senderID, "Допускается отправить только скринишот.");
+                        bot.execute(new DeleteMessage(senderID, messageID));
+                    } else if (message.mediaGroupId() != null) {
+                        bot.execute(new DeleteMessage(senderID, messageID));
+                        sendMessage(senderID, "Допускается только один скриншот.");
+                    } else if (message.caption() != null) {
+                        sendMessage(senderID, "У скриншота не должно быть описания.");
+                        bot.execute(new DeleteMessage(senderID, messageID));
+                    } else {
+                        photo.put(senderID, messageID);
+                        sendMessage(senderID, "Отлично! Теперь пришли мне историю в одном текстовом сообщении.\n" +
+                                "Сообщение не должно содержать медиа (фото, видео, и т.д.)");
+                    }
+                    return;
+                }
+
+                if (story.containsKey(senderID) && story.get(senderID) == -1) {
+                    if (message.text() == null) {
+                        sendMessage(senderID, "Допускается отправить только текст.");
+                    } else {
+                        story.put(senderID, messageID);
+                        sendMessage(senderID, "Отлично! Заявка готова к отправке.\n" +
+                                "Проверь еще раз текст, и отправь командой /send.\n" +
+                                "Дальнейшие сообщения будут удаляться");
+                    }
+                    return;
                 }
                 limitMessages(messageID, senderID);
             }
@@ -80,7 +109,7 @@ public class Bot {
     }
 
     private void processSend(long senderID) {
-        if (senders.containsKey(senderID)) {
+        if (story.containsKey(senderID)) {
             if (timeLimitedUsers.containsKey(senderID)) {
                 if (new Date().getTime() < timeLimitedUsers.get(senderID)) {
                     sendTimeoutReport(senderID);
@@ -98,8 +127,10 @@ public class Bot {
         String data = callbackQuery.data();
         switch (data) {
             case BREAK_DATA:
-                senders.get(senderID).forEach(msg -> bot.execute(new DeleteMessage(senderID, msg)));
-                senders.remove(senderID);
+                bot.execute(new DeleteMessage(senderID, photo.get(senderID)));
+                bot.execute(new DeleteMessage(senderID, story.get(senderID)));
+                photo.remove(senderID);
+                story.remove(senderID);
                 bot.execute(new EditMessageText(senderID,
                         deleteRequestMsg.get(senderID), PROGRESS_BRAKED_MSG));
                 break;
@@ -131,28 +162,25 @@ public class Bot {
                 text = ADMIN_DENY_MSG;
                 break;
         }
-        bot.execute(new EditMessageText(ADMIN_ID, actionRequestMsg.get(recipientID), text));
-        actionRequestMsg.remove(recipientID);
+        try {
+            bot.execute(new EditMessageText(ADMIN_ID, actionRequestMsg.get(recipientID), text));
+            actionRequestMsg.remove(recipientID);
+        } catch (Exception e) {
+            sendMessage(ADMIN_ID, "Заявки нет в списке. Обратись к разработчику");
+        }
+
     }
 
     private void limitMessages(int messageID, long senderID) {
-        if (senders.containsKey(senderID)) {
-            ArrayList<Integer> idList = senders.get(senderID);
-            if (idList.size() >= MSGPACK_SIZE) {
-                bot.execute(new DeleteMessage(senderID, messageID));
-            } else {
-                idList.add(messageID);
-                if (idList.size() == MSGPACK_SIZE) {
-                    sendMessage(senderID, MSGPACK_SIZE_LIMIT_MSG);
-                }
-            }
+        if (story.containsKey(senderID)) {
+            bot.execute(new DeleteMessage(senderID, messageID));
         } else {
             sendMessage(senderID, INPUT_BEGIN_MSG);
         }
     }
 
     private void processBreak(long senderID) {
-        if (senders.containsKey(senderID)) {
+        if (photo.containsKey(senderID)) {
             SendResponse response = sendMessage(senderID, BREAK_REQUEST_MSG, userHandler());
             deleteRequestMsg.put(senderID, response.message().messageId());
         } else {
@@ -162,7 +190,7 @@ public class Bot {
 
 
     private void sendTimeoutReport(long senderID) {
-        int time = (int) ((timeLimitedUsers.get(senderID) - new Date().getTime()) / TIMEOUT);
+        int time = (int) ((timeLimitedUsers.get(senderID) - new Date().getTime()) / 1000);
         int minutes = time / 60;
         int seconds = time % 60;
         sendMessage(senderID,
@@ -170,8 +198,9 @@ public class Bot {
     }
 
     private void processBegin(Message message, long senderID) {
-        if (!senders.containsKey(senderID)) {
-            senders.put(senderID, new ArrayList<>());
+        if (!photo.containsKey(senderID)) {
+            photo.put(senderID, -1);
+            story.put(senderID, -1);
             sendMessage(senderID, HELLO + message.from().firstName() + LETS_BEGIN_MSG);
         } else {
             sendMessage(senderID, PROCESS_ALREADY_RUNNING_MSG);
@@ -179,15 +208,20 @@ public class Bot {
     }
 
     private void sendMsgPack(long senderID) {
-        ArrayList<Integer> idList = senders.get(senderID);
-        if (idList.size() == 0) {
+        if (story.get(senderID) == 0) {
             sendMessage(senderID, NOTHING_TO_SEND_MSG);
         } else {
-            idList.forEach(id -> bot.execute(new ForwardMessage(ADMIN_ID, senderID, id)));
-            senders.remove(senderID);
+            bot.execute(new ForwardMessage(ADMIN_ID, senderID, photo.get(senderID)));
+            bot.execute(new ForwardMessage(ADMIN_ID, senderID, story.get(senderID)));
+
+            story.remove(senderID);
+            photo.remove(senderID);
+
             timeLimitedUsers.put(senderID, new Date().getTime() + TIMEOUT);
+
             SendResponse response = sendMessage(ADMIN_ID, CHOICE_ACTION_MSG, adminHandler(senderID));
             actionRequestMsg.put(senderID, response.message().messageId());
+
             sendMessage(senderID, MSGPACK_SENT_MSG);
         }
     }
