@@ -7,6 +7,7 @@ import com.pengrad.telegrambot.model.Message;
 import com.pengrad.telegrambot.model.Update;
 import com.pengrad.telegrambot.model.request.InlineKeyboardButton;
 import com.pengrad.telegrambot.model.request.InlineKeyboardMarkup;
+import com.pengrad.telegrambot.model.request.ParseMode;
 import com.pengrad.telegrambot.request.DeleteMessage;
 import com.pengrad.telegrambot.request.EditMessageText;
 import com.pengrad.telegrambot.request.ForwardMessage;
@@ -57,7 +58,7 @@ public class Bot {
                             processSend(senderID);
                             return;
                         case HELP:
-                            sendMessage(senderID, README);
+                            sendMessage(senderID, README, ParseMode.HTML);
                             return;
                         case BREAK:
                             processBreak(senderID);
@@ -193,6 +194,10 @@ public class Bot {
 
     void sendMessage(long chatID, String msg) {
         bot.execute(new SendMessage(chatID, msg));
+    }
+
+    void sendMessage(long chatID, String msg, ParseMode parseMode) {
+        bot.execute(new SendMessage(chatID, msg).parseMode(parseMode));
     }
 
     SendResponse sendMessage(long chatID, String msg, InlineKeyboardMarkup markup) {

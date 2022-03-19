@@ -2,7 +2,7 @@ package bot;
 
 public class Constants {
     public static final long ADMIN_ID = 5120189161L;
-    public static final long TIMEOUT = 30000;
+    public static final long TIMEOUT = 1000 * 60 * 60;
     public static final int MSGPACK_SIZE = 5;
     public static final String TOKEN = "5177036357:AAHfT4N39iOR-O8eZ52veilPILr4kaNPDHs";
 
@@ -10,12 +10,12 @@ public class Constants {
     public static final String SEND = "/send";
     public static final String BREAK = "/break";
     public static final String HELP = "/help";
+
     public static final String BREAK_BTN_LABEL = "Завершить";
     public static final String RESUME_BTN_LABEL = "Продолжить";
     public static final String ACCEPT_BTN_LABEL = "Принять";
     public static final String EDIT_BTN_LABEL = "Редактировать";
     public static final String DENY_BTN_LABEL = "Отклонить";
-    public static final String README = "Файл readme на редакции";
 
     public static final String DATA_SPLITTER = ":";
     public static final String BREAK_DATA = "break";
@@ -86,4 +86,19 @@ public class Constants {
 
     public static final String HELLO =
             "Привет ";
+
+    public static final String README =
+            "<p>Бот позволяет отправить заявку на публикацию твоей истории на канале <a href=\"https://t.me/+qGVq3mfNQrFjOTdi\">СТОП! Кидалово</a>.<br />Можно отправить пакет из 5 сообщений не чаще чем 1 раз в час.</p>\n" +
+                    "<p><strong>Инструкция по исплозованию бота:</strong></p>\n" +
+                    "<ol>\n" +
+                    "<li>Чтобы начать набирать сообщения, необходимо из меню вызвать команду /begin.</li>\n" +
+                    "<li>Далее следует набрать сообщения, которые могут содержать фотографии, видео и просто текст (от 1 до 5).</li>\n" +
+                    "<li>Когда будет набрано 5 сообщений, бот сообщит об ограничении, и дальнейшие сообщения будт мгновенно удаляться. Поэтому важно это учитывать и сразу правильно заполнять заявку согласно правилам оформления.</li>\n" +
+                    "<li>Набранные в рамках текущей процедуры сообщения допустимо редактировать, однако нельзя удалять, т.к. удаленные собщения бот все равно сохранит и перешлет.</li>\n" +
+                    "<li>После того, как будет оформлен пакет сообщений, необходимо из меню вызвать команду /send, после чего весь пакет сообщений будет отправлен менеджеру канала.</li>\n" +
+                    "<li>Отправка сообщений автоматически завершит процедуру, и можно будет начать новую выбрав из меню команду /begin. Однако отправка сообщений командой /send будет недоступна в течении 1 часа. При попытке отправить пакет бот будет сообщать об этом и показывать оставшееся время ожидания.</li>\n" +
+                    "<li>Менеджер канала может принять вашу заявку на публикацию, попросить оформить заявку согласно правилам оформления, или отклонить заявку без указания причины.</li>\n" +
+                    "<li>Команда /break позволяет сбросить весь прогресс процедуры, удалить все набранные в рамках текущей процедуры сообщения. Чтобы начать новую процедуру, необходимо из меню вызвать команду /begin.</li>\n" +
+                    "</ol>\n" +
+                    "<p>Правила оформления заявки:</p>";
 }
