@@ -58,7 +58,7 @@ public class Bot {
                             processSend(senderID);
                             return;
                         case HELP:
-                            sendMessage(senderID, README, ParseMode.HTML);
+                            sendMessage(senderID, README, ParseMode.MarkdownV2);
                             return;
                         case BREAK:
                             processBreak(senderID);
