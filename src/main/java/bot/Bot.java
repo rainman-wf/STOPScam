@@ -29,7 +29,6 @@ public class Bot {
     private final Map<Long, Integer> story = new HashMap<>();
     private final Map<Long, Long> timeLimitedUsers = new HashMap<>();
     private final Map<Long, Integer> deleteRequestMsg = new HashMap<>();
-    private final Map<Long, Integer> actionRequestMsg = new HashMap<>();
 
     public void listen() {
         bot.setUpdatesListener(updates -> {
@@ -67,30 +66,27 @@ public class Bot {
                 }
                 if (photo.containsKey(senderID) && photo.get(senderID) == -1) {
                     if (message.photo() == null) {
-                        sendMessage(senderID, "Допускается отправить только скринишот.");
+                        sendMessage(senderID, ONLY_SCREENSHOT_ERROR_MSG);
                         bot.execute(new DeleteMessage(senderID, messageID));
                     } else if (message.mediaGroupId() != null) {
                         bot.execute(new DeleteMessage(senderID, messageID));
-                        sendMessage(senderID, "Допускается только один скриншот.");
+                        sendMessage(senderID, ONLY_ONE_FILE_ERROR_MSG);
                     } else if (message.caption() != null) {
-                        sendMessage(senderID, "У скриншота не должно быть описания.");
+                        sendMessage(senderID, CAPTION_FREE_ERROR_MSG);
                         bot.execute(new DeleteMessage(senderID, messageID));
                     } else {
                         photo.put(senderID, messageID);
-                        sendMessage(senderID, "Отлично! Теперь пришли мне историю в одном текстовом сообщении.\n" +
-                                "Сообщение не должно содержать медиа (фото, видео, и т.д.)");
+                        sendMessage(senderID, INPUT_TEXT_MSG);
                     }
                     return;
                 }
 
                 if (story.containsKey(senderID) && story.get(senderID) == -1) {
                     if (message.text() == null) {
-                        sendMessage(senderID, "Допускается отправить только текст.");
+                        sendMessage(senderID, ONLY_TEXT_ERROR_MSG);
                     } else {
                         story.put(senderID, messageID);
-                        sendMessage(senderID, "Отлично! Заявка готова к отправке.\n" +
-                                "Проверь еще раз текст, и отправь командой /send.\n" +
-                                "Дальнейшие сообщения будут удаляться");
+                        sendMessage(senderID, INPUT_SEND_MSG);
                     }
                     return;
                 }
@@ -108,18 +104,64 @@ public class Bot {
         }
     }
 
+    private void processBegin(Message message, long senderID) {
+        if (!photo.containsKey(senderID)) {
+            photo.put(senderID, -1);
+            story.put(senderID, -1);
+            sendMessage(senderID, HELLO + message.from().firstName() + LETS_BEGIN_MSG);
+        } else {
+            sendMessage(senderID, PROCESS_ALREADY_RUNNING_MSG);
+        }
+    }
+
     private void processSend(long senderID) {
-        if (story.containsKey(senderID)) {
-            if (timeLimitedUsers.containsKey(senderID)) {
-                if (new Date().getTime() < timeLimitedUsers.get(senderID)) {
-                    sendTimeoutReport(senderID);
-                } else {
-                    timeLimitedUsers.remove(senderID);
-                    sendMsgPack(senderID);
-                }
+        if (!story.containsKey(senderID)) {
+            sendMessage(senderID, PROCESS_NOT_STARTED_MSG);
+            return;
+        }
+
+        if (story.get(senderID) == -1) {
+            sendMessage(senderID, NOTHING_TO_SEND_MSG);
+            return;
+        }
+
+        if (timeLimitedUsers.containsKey(senderID)) {
+            if (timeLimitedUsers.get(senderID) > new Date().getTime()) {
+                sendTimeoutReport(senderID);
+                return;
             } else {
-                sendMsgPack(senderID);
+                timeLimitedUsers.remove(senderID);
             }
+        }
+
+        sendMsgPack(senderID);
+    }
+
+    private void sendMsgPack(long senderID) {
+
+        bot.execute(new ForwardMessage(ADMIN_ID, senderID, photo.get(senderID)));
+        bot.execute(new ForwardMessage(ADMIN_ID, senderID, story.get(senderID)));
+
+        story.remove(senderID);
+        photo.remove(senderID);
+
+        timeLimitedUsers.put(senderID, new Date().getTime() + TIMEOUT);
+
+        SendResponse response = sendMessage(ADMIN_ID, CHOICE_ACTION_MSG);
+        int msgId = response.message().messageId();
+        bot.execute(new EditMessageText(ADMIN_ID, msgId, CHOICE_ACTION_MSG)
+                .replyMarkup(adminHandler(senderID, msgId)));
+
+        sendMessage(senderID, MSGPACK_SENT_MSG);
+
+    }
+
+    private void processBreak(long senderID) {
+        if (photo.containsKey(senderID)) {
+            SendResponse response = sendMessage(senderID, BREAK_REQUEST_MSG, userHandler());
+            deleteRequestMsg.put(senderID, response.message().messageId());
+        } else {
+            sendMessage(senderID, PROCESS_NOT_STARTED_MSG);
         }
     }
 
@@ -141,11 +183,12 @@ public class Bot {
         }
     }
 
-    private void adminHandlingResult(CallbackQuery callbackQuery) {
+    private void adminHandlingResult(@NotNull CallbackQuery callbackQuery) {
         String[] data = callbackQuery.data().split(DATA_SPLITTER);
 
         String action = data[0];
         long recipientID = Long.parseLong(data[1]);
+        int msgID = Integer.parseInt(data[2]);
 
         sendResponseToSender(recipientID, action);
 
@@ -163,8 +206,8 @@ public class Bot {
                 break;
         }
         try {
-            bot.execute(new EditMessageText(ADMIN_ID, actionRequestMsg.get(recipientID), text));
-            actionRequestMsg.remove(recipientID);
+            bot.execute(new EditMessageText(ADMIN_ID, msgID, text));
+
         } catch (Exception e) {
             sendMessage(ADMIN_ID, "Заявки нет в списке. Обратись к разработчику");
         }
@@ -179,15 +222,6 @@ public class Bot {
         }
     }
 
-    private void processBreak(long senderID) {
-        if (photo.containsKey(senderID)) {
-            SendResponse response = sendMessage(senderID, BREAK_REQUEST_MSG, userHandler());
-            deleteRequestMsg.put(senderID, response.message().messageId());
-        } else {
-            sendMessage(senderID, PROCESS_NOT_STARTED_MSG);
-        }
-    }
-
 
     private void sendTimeoutReport(long senderID) {
         int time = (int) ((timeLimitedUsers.get(senderID) - new Date().getTime()) / 1000);
@@ -197,37 +231,9 @@ public class Bot {
                 TIMEOUT_LIMIT_MSG + (minutes > 0 ? minutes : "") + " мин " + seconds + " сек");
     }
 
-    private void processBegin(Message message, long senderID) {
-        if (!photo.containsKey(senderID)) {
-            photo.put(senderID, -1);
-            story.put(senderID, -1);
-            sendMessage(senderID, HELLO + message.from().firstName() + LETS_BEGIN_MSG);
-        } else {
-            sendMessage(senderID, PROCESS_ALREADY_RUNNING_MSG);
-        }
-    }
 
-    private void sendMsgPack(long senderID) {
-        if (story.get(senderID) == 0) {
-            sendMessage(senderID, NOTHING_TO_SEND_MSG);
-        } else {
-            bot.execute(new ForwardMessage(ADMIN_ID, senderID, photo.get(senderID)));
-            bot.execute(new ForwardMessage(ADMIN_ID, senderID, story.get(senderID)));
-
-            story.remove(senderID);
-            photo.remove(senderID);
-
-            timeLimitedUsers.put(senderID, new Date().getTime() + TIMEOUT);
-
-            SendResponse response = sendMessage(ADMIN_ID, CHOICE_ACTION_MSG, adminHandler(senderID));
-            actionRequestMsg.put(senderID, response.message().messageId());
-
-            sendMessage(senderID, MSGPACK_SENT_MSG);
-        }
-    }
-
-    void sendMessage(long chatID, String msg) {
-        bot.execute(new SendMessage(chatID, msg));
+    SendResponse sendMessage(long chatID, String msg) {
+        return bot.execute(new SendMessage(chatID, msg));
     }
 
     void sendMessage(long chatID, String msg, ParseMode parseMode) {
@@ -255,15 +261,15 @@ public class Bot {
     }
 
     @NotNull
-    private InlineKeyboardMarkup adminHandler(long senderID) {
+    private InlineKeyboardMarkup adminHandler(long senderID, int msgID) {
         return new InlineKeyboardMarkup(
-                adminHandlerBtn(ACCEPT_BTN_LABEL, ACCEPT_DATA, senderID),
-                adminHandlerBtn(EDIT_BTN_LABEL, EDIT_DATA, senderID),
-                adminHandlerBtn(DENY_BTN_LABEL, DENY_DATA, senderID));
+                adminHandlerBtn(ACCEPT_BTN_LABEL, ACCEPT_DATA, senderID, msgID),
+                adminHandlerBtn(EDIT_BTN_LABEL, EDIT_DATA, senderID, msgID),
+                adminHandlerBtn(DENY_BTN_LABEL, DENY_DATA, senderID, msgID));
     }
 
-    private InlineKeyboardButton adminHandlerBtn(String label, String data, long senderID) {
-        return handlerBtn(label, data + DATA_SPLITTER + senderID);
+    private InlineKeyboardButton adminHandlerBtn(String label, String data, long senderID, int msgID) {
+        return handlerBtn(label, data + DATA_SPLITTER + senderID + DATA_SPLITTER + msgID);
     }
 
     @NotNull

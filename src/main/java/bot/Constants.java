@@ -3,7 +3,6 @@ package bot;
 public class Constants {
     public static final long ADMIN_ID = 1645169713;
     public static final long TIMEOUT = 60 * 60 * 1000;
-    public static final int MSGPACK_SIZE = 2;
     public static final String TOKEN = "5177036357:AAHfT4N39iOR-O8eZ52veilPILr4kaNPDHs";
 
     public static final String BEGIN = "/begin";
@@ -39,12 +38,8 @@ public class Constants {
     public static final String ADMIN_DENY_MSG =
             "\u274c Отклонено.";
 
-    public static final String MSGPACK_SIZE_LIMIT_MSG =
-            "Нельзя отправлять более "+ MSGPACK_SIZE + " сообщений за раз.\n" +
-                    "Все дальнейшие сообщения будут удаляться.";
-
     public static final String INPUT_BEGIN_MSG =
-            "Введите " + BEGIN + " для начала.";
+            "Нажми " + BEGIN + " для начала.";
 
     public static final String BREAK_REQUEST_MSG =
             "Все набранные в данной сессии сообщения будут удалены.\n" +
@@ -52,11 +47,10 @@ public class Constants {
                     "Вы уверены?";
 
     public static final String PROCESS_NOT_STARTED_MSG =
-            "Процедура не была запущена.";
+            "Процедура не была запущена.\n" + INPUT_BEGIN_MSG;
 
     public static final String TIMEOUT_LIMIT_MSG =
-            "Нельзя отправлять сообщения " +
-                    "чаще, чем 1 раз в час.\nОжидайте ";
+            "Нельзя отправлять заявку чаще, чем 1 раз в час.\nОжидайте ";
 
     public static final String LETS_BEGIN_MSG =
             "\nДавай начнем! " +
@@ -66,13 +60,13 @@ public class Constants {
             "Процедура набора сообщений уже запущена.";
 
     public static final String NOTHING_TO_SEND_MSG =
-            "Нечего отправлять. Наберите хотя бы одно сообщение.";
+            "Заполни заявку согласно правилам оформления.";
 
     public static final String MSGPACK_SENT_MSG =
-            "\u2705 Сообщения были отправлены\nОжидайте ответа администратора.";
+            "\u2705 Сообщения были отправлены\nОжидайте ответа менеджара канала.";
 
     public static final String MSGPACK_ACCEPTED_MSG =
-            "Ваша история будет опубликована.";
+            "Ваша история будет опубликована в ближайшее время.";
 
     public static final String MSGPACK_NEED_EDITING_MSG =
             "Отредакутируйте ваше сообщение согласно правилам оформления.";
@@ -86,6 +80,27 @@ public class Constants {
     public static final String HELLO =
             "Привет ";
 
+    public static final String ONLY_SCREENSHOT_ERROR_MSG =
+            "Допускается отправить только скринишот.";
+
+    public static final String ONLY_ONE_FILE_ERROR_MSG =
+            "Допускается только один скриншот.";
+
+    public static final String ONLY_TEXT_ERROR_MSG =
+            "Допускается отправить только текст.";
+
+    public static final String CAPTION_FREE_ERROR_MSG =
+            "У скриншота не должно быть описания.";
+
+    public static final String INPUT_TEXT_MSG =
+            "Отлично! Теперь пришли мне историю в одном текстовом сообщении.\n" +
+                    "Сообщение не должно содержать медиа (фото, видео, и т.д.)";
+
+    public static final String INPUT_SEND_MSG =
+            "Отлично! Заявка готова к отправке.\n" +
+                    "Проверь еще раз текст и отправь заявку, вызвав из меню команду /send.\n" +
+                    "Дальнейшие сообщения будут удаляться.";
+
     public static final String README =
             "Бот позволяет отправить заявку на публикацию твоей истории на канале " +
                     "<a href=\"https://t.me/+qGVq3mfNQrFjOTdi\">СТОП! Кидалово</a>.\n" +
@@ -96,7 +111,7 @@ public class Constants {
                     "\n" +
                     "1. Вызвать из меню команду /begin.\n" +
                     "2. Прикрепить скриншот <b><u>ОДНИМ ФАЙЛОМ В ВИДЕ КОЛЛАЖА</u></b> без какого либо описания.\n" +
-                    "3. Написать текст истории <b><u>ОДНИМ ОТДЕНЛЬНЫМ СООБЩЕНИЕМ</u></b>\n" +
+                    "3. Написать текст истории <b><u>ОДНИМ ОТДЕЛЬНЫМ СООБЩЕНИЕМ</u></b>\n" +
                     "4. Вызвать из меню команду /send.\n" +
                     "\n" +
                     "<i>В результате должно быть два сообщения c одним сриншотом и одним текстовым сообщением.</i>\n" +
@@ -105,7 +120,7 @@ public class Constants {
                     "Если ты допустил(а) какую-либо ошибку, следует сбросить продцедуру командой /break, и начать новую, как описано выше.\n" +
                     "\n" +
                     "* После того, как была отправлена заявка, бот автоматически сбросит процедуру, и ты сможешь приступить к оформлению новой заявки, " +
-                    "однако отправка командой /send будет надоступна в течении 1 часа. Бот сообщит о запущенном таймере и покажет оставшееся время ожидания.\n"+
+                    "однако отправка командой /send будет надоступна в течении 1 часа. Бот сообщит о запущенном таймере и покажет оставшееся время ожидания.\n" +
                     "\n" +
                     "* Менеджер канала может принять вашу заявку на публикацию, попросить оформить заявку согласно правилам оформления, или отклонить заявку без указания причины.\n" +
                     "\n" +
