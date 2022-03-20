@@ -2,7 +2,7 @@ package bot;
 
 public class Constants {
     public static final long ADMIN_ID = 1645169713;
-    public static final long TIMEOUT = 60 * 60 * 1000;
+    public static final long TIMEOUT = 1000;
     public static final String TOKEN = "5177036357:AAHfT4N39iOR-O8eZ52veilPILr4kaNPDHs";
 
     public static final String BEGIN = "/begin";
